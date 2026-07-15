@@ -46,7 +46,10 @@ export default function ArticlePage() {
   const handleListen = () => {
     if (listening) { window.speechSynthesis.cancel(); setListening(false); return }
     if (!displayContent) return
-    const text = displayContent.title + '. ' + displayContent.content
+    const parts = [displayContent.title]
+    if (displayContent.summary) parts.push(displayContent.summary)
+    if (displayContent.content) parts.push(displayContent.content)
+    const text = parts.join('. ')
     const utterance = new SpeechSynthesisUtterance(text)
     const langMap = { en:'en-US', hi:'hi-IN', mr:'mr-IN', ta:'ta-IN', te:'te-IN', bn:'bn-IN', gu:'gu-IN', pa:'pa-IN', fr:'fr-FR', es:'es-ES' }
     utterance.lang = langMap[language] || 'en-US'

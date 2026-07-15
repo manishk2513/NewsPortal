@@ -5,10 +5,8 @@ const {
   fetchWorldNews,
   fetchByCategory,
 } = require("../services/newsService");
-const {
-  rewriteArticle,
-  generateSummary,
-} = require("../services/geminiService");
+// Gemini disabled for now — using raw content directly
+// const { rewriteArticle, generateSummary } = require("../services/geminiService");
 const authMiddleware = require("../middleware/auth");
 const router = express.Router();
 
@@ -40,18 +38,17 @@ router.post("/fetch", async (req, res) => {
         const exists = await Article.findOne({ originalTitle: raw.title });
         if (exists) continue;
 
-        const fallbackContent = raw.description || raw.content || raw.title;
-        const rewrittenContent =
-          (await rewriteArticle(raw.title, fallbackContent)) || fallbackContent;
-
-        const summary =
-          (await generateSummary(rewrittenContent)) ||
-          (raw.description ? raw.description.substring(0, 150) : "");
+        const rawContent = raw.description || raw.content || raw.title;
+        // Gemini disabled — use raw content as-is
+        const finalContent = rawContent;
+        const summary = raw.description
+          ? raw.description.substring(0, 150)
+          : rawContent.substring(0, 150);
 
         const article = new Article({
           title: raw.title,
           originalTitle: raw.title,
-          content: rewrittenContent,
+          content: finalContent,
           originalContent: raw.content || raw.description,
           summary,
           imageUrl: raw.image || "",
@@ -61,14 +58,12 @@ router.post("/fetch", async (req, res) => {
           },
           category: category,
           status: "draft",
-          aiRewritten: true,
+          aiRewritten: false,
         });
 
         await article.save();
         results.push(article);
         successCount++;
-
-        await new Promise((resolve) => setTimeout(resolve, 1500));
       } catch (err) {
         console.error("Article error:", err.message);
         failCount++;

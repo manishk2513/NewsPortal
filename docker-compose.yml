@@ -10,11 +10,11 @@ services:
       - PORT=5000
       - MONGODB_URI=${MONGODB_URI}
       - GNEWS_API_KEY=${GNEWS_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
-      - NEWSDATA_API_KEY=${NEWSDATA_API_KEY}
+      # GEMINI_API_KEY and NEWSDATA_API_KEY not required while AI features are disabled
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
     networks:
       - newsnet
