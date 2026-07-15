@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+# Use nginx /api proxy in production (see nginx.conf)
+ENV VITE_API_URL=/api
 RUN npm run build
 
 FROM nginx:alpine

@@ -63,7 +63,7 @@ Content: ${content}
 
 async function generateSummary(content) {
   const prompt = `
-Summarize this news article in exactly 2 sentences.
+Summarize this news article in not more than 18 sentences.
 Return ONLY the summary nothing else.
 
 Article: ${content}

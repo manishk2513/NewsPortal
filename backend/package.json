@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --check server.js && node --check routes/newsRoutes.js && node --check routes/adminRoutes.js && node --check routes/authRoutes.js && node --check routes/translateRoutes.js && node --check services/newsService.js && node --check services/geminiService.js && echo \"All syntax checks passed\""
+    "test": "node tests/smoke.test.js"
   },
   "keywords": [],
   "author": "",

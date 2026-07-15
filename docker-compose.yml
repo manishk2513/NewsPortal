@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
@@ -7,14 +5,13 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - PORT=5000
-      - MONGODB_URI=${MONGODB_URI}
-      - GNEWS_API_KEY=${GNEWS_API_KEY}
-      - ADMIN_USERNAME=${ADMIN_USERNAME}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      # GEMINI_API_KEY and NEWSDATA_API_KEY not required while AI features are disabled
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+      PORT: "5000"
+      MONGODB_URI: ${MONGODB_URI}
+      GNEWS_API_KEY: ${GNEWS_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
     restart: unless-stopped
     networks:
       - newsnet

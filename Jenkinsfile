@@ -4,10 +4,10 @@ pipeline {
     environment {
         MONGODB_URI      = credentials('MONGODB_URI')
         GNEWS_API_KEY    = credentials('GNEWS_API_KEY')
+        GEMINI_API_KEY   = credentials('GEMINI_API_KEY')
         JWT_SECRET       = credentials('JWT_SECRET')
         ADMIN_PASSWORD   = credentials('ADMIN_PASSWORD')
-        // GEMINI_API_KEY is optional — only needed if AI rewrite is re-enabled
-        // GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+        ADMIN_USERNAME   = 'admin'
     }
 
     stages {
@@ -19,44 +19,38 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            parallel {
-                stage('Install Backend') {
-                    steps {
-                        echo '--- Installing backend dependencies ---'
-                        dir('backend') {
-                            sh 'npm install'
-                        }
-                    }
+        stage('Install Backend') {
+            steps {
+                echo '--- Installing backend dependencies ---'
+                dir('backend') {
+                    sh 'npm ci || npm install'
                 }
-                stage('Install Frontend') {
-                    steps {
-                        echo '--- Installing frontend dependencies ---'
-                        dir('frontend') {
-                            sh 'npm install'
-                        }
-                    }
+            }
+        }
+
+        stage('Install Frontend') {
+            steps {
+                echo '--- Installing frontend dependencies ---'
+                dir('frontend') {
+                    sh 'npm ci || npm install'
                 }
             }
         }
 
         stage('Test') {
-            parallel {
-                stage('Backend Tests') {
-                    steps {
-                        echo '--- Running backend syntax/unit tests ---'
-                        dir('backend') {
-                            sh 'npm test'
-                        }
-                    }
+            steps {
+                echo '--- Running backend smoke tests ---'
+                dir('backend') {
+                    sh 'npm test'
                 }
-                stage('Frontend Lint') {
-                    steps {
-                        echo '--- Linting frontend ---'
-                        dir('frontend') {
-                            sh 'npm run lint'
-                        }
-                    }
+            }
+        }
+
+        stage('Frontend Lint') {
+            steps {
+                echo '--- Linting frontend ---'
+                dir('frontend') {
+                    sh 'npm run lint'
                 }
             }
         }
@@ -65,7 +59,7 @@ pipeline {
             steps {
                 echo '--- Building React frontend ---'
                 dir('frontend') {
-                    sh 'npm run build'
+                    sh 'VITE_API_URL=/api npm run build'
                 }
             }
         }
@@ -87,22 +81,39 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo '--- Starting new containers ---'
-                sh """
-                    MONGODB_URI=${MONGODB_URI} \\
-                    GNEWS_API_KEY=${GNEWS_API_KEY} \\
-                    JWT_SECRET=${JWT_SECRET} \\
-                    ADMIN_USERNAME=admin \\
-                    ADMIN_PASSWORD=${ADMIN_PASSWORD} \\
+                sh '''
+                    set -e
+                    : > .env
+                    printf 'MONGODB_URI=%s\n'    "$MONGODB_URI"    >> .env
+                    printf 'GNEWS_API_KEY=%s\n'  "$GNEWS_API_KEY"  >> .env
+                    printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env
+                    printf 'JWT_SECRET=%s\n'     "$JWT_SECRET"     >> .env
+                    printf 'ADMIN_USERNAME=%s\n' "$ADMIN_USERNAME" >> .env
+                    printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" >> .env
+                    printf 'PORT=5000\n'                           >> .env
                     docker compose up -d
-                """
+                '''
             }
         }
 
         stage('Health Check') {
             steps {
-                echo '--- Waiting for backend to be ready ---'
-                sh 'sleep 15'
-                sh 'curl -f http://localhost:5000/health || exit 1'
+                echo '--- Checking app health ---'
+                sh '''
+                    set -e
+                    for i in 1 2 3 4 5 6 7 8 9 10; do
+                      if curl -fsS http://localhost:5000/health; then
+                        echo ""
+                        echo "Health check passed"
+                        exit 0
+                      fi
+                      echo "Attempt $i failed, retrying in 3s..."
+                      sleep 3
+                    done
+                    echo "Health check failed after 10 attempts"
+                    docker compose logs --tail=100 || true
+                    exit 1
+                '''
             }
         }
     }
@@ -113,9 +124,10 @@ pipeline {
         }
         failure {
             echo 'Pipeline failed. Check logs above.'
+            sh 'docker compose logs --tail=100 || true'
         }
         always {
-            echo '--- Cleaning up dangling Docker images ---'
+            sh 'rm -f .env || true'
             sh 'docker image prune -f || true'
         }
     }

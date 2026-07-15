@@ -5,8 +5,7 @@ const {
   fetchWorldNews,
   fetchByCategory,
 } = require("../services/newsService");
-// Gemini disabled for now — using raw content directly
-// const { rewriteArticle, generateSummary } = require("../services/geminiService");
+const { rewriteArticle, generateSummary } = require("../services/geminiService");
 const authMiddleware = require("../middleware/auth");
 const router = express.Router();
 
@@ -39,11 +38,16 @@ router.post("/fetch", async (req, res) => {
         if (exists) continue;
 
         const rawContent = raw.description || raw.content || raw.title;
-        // Gemini disabled — use raw content as-is
-        const finalContent = rawContent;
-        const summary = raw.description
+
+        // Attempt Gemini rewrite — fall back to raw content if it fails
+        const rewritten = await rewriteArticle(raw.title, rawContent);
+        const finalContent = rewritten || rawContent;
+
+        // Attempt Gemini summary — fall back to truncated description
+        const aiSummary = await generateSummary(finalContent);
+        const summary = aiSummary || (raw.description
           ? raw.description.substring(0, 150)
-          : rawContent.substring(0, 150);
+          : rawContent.substring(0, 150));
 
         const article = new Article({
           title: raw.title,
@@ -58,7 +62,7 @@ router.post("/fetch", async (req, res) => {
           },
           category: category,
           status: "draft",
-          aiRewritten: false,
+          aiRewritten: !!rewritten,
         });
 
         await article.save();
