@@ -2,12 +2,15 @@ pipeline {
     agent any
 
     environment {
-        MONGODB_URI    = credentials('MONGODB_URI')
-        GNEWS_API_KEY  = credentials('GNEWS_API_KEY')
-        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        JWT_SECRET     = credentials('JWT_SECRET')
-        ADMIN_PASSWORD = credentials('ADMIN_PASSWORD')
-        NEWSDATA_API_KEY = credentials('NEWSDATA_API_KEY')
+        // Secret-text credentials stored in Jenkins
+        MONGODB_URI      = credentials('MONGODB_URI')
+        GNEWS_API_KEY    = credentials('GNEWS_API_KEY')
+        GEMINI_API_KEY   = credentials('GEMINI_API_KEY')
+        JWT_SECRET       = credentials('JWT_SECRET')
+        ADMIN_PASSWORD   = credentials('ADMIN_PASSWORD')
+        ADMIN_USERNAME   = 'admin'
+        // Unused by app code; optional so a missing credential does not fail the job
+        NEWSDATA_API_KEY = ''
     }
 
     stages {
@@ -23,7 +26,7 @@ pipeline {
             steps {
                 echo '--- Installing backend dependencies ---'
                 dir('backend') {
-                    sh 'npm install'
+                    sh 'npm ci || npm install'
                 }
             }
         }
@@ -32,14 +35,14 @@ pipeline {
             steps {
                 echo '--- Installing frontend dependencies ---'
                 dir('frontend') {
-                    sh 'npm install'
+                    sh 'npm ci || npm install'
                 }
             }
         }
 
         stage('Test') {
             steps {
-                echo '--- Running tests ---'
+                echo '--- Running backend smoke tests ---'
                 dir('backend') {
                     sh 'npm test'
                 }
@@ -50,7 +53,8 @@ pipeline {
             steps {
                 echo '--- Building React frontend ---'
                 dir('frontend') {
-                    sh 'npm run build'
+                    // Relative /api works behind nginx proxy in Docker
+                    sh 'VITE_API_URL=/api npm run build'
                 }
             }
         }
@@ -73,13 +77,24 @@ pipeline {
             steps {
                 echo '--- Starting new containers ---'
                 sh '''
-                    export MONGODB_URI=$MONGODB_URI
-                    export GNEWS_API_KEY=$GNEWS_API_KEY
-                    export GEMINI_API_KEY=$GEMINI_API_KEY
-                    export JWT_SECRET=$JWT_SECRET
-                    export ADMIN_USERNAME=admin
-                    export ADMIN_PASSWORD=$ADMIN_PASSWORD
-                    export NEWSDATA_API_KEY=$NEWSDATA_API_KEY
+                    set -e
+                    # Secret-text credential → use ADMIN_PASSWORD as the password.
+                    # Username/password credential → Jenkins also sets
+                    # ADMIN_PASSWORD_USR / ADMIN_PASSWORD_PSW.
+                    ADMIN_USER="${ADMIN_PASSWORD_USR:-$ADMIN_USERNAME}"
+                    ADMIN_PASS="${ADMIN_PASSWORD_PSW:-$ADMIN_PASSWORD}"
+
+                    # printf avoids shell expansion mangling special characters in secrets
+                    : > .env
+                    printf 'MONGODB_URI=%s\n' "$MONGODB_URI" >> .env
+                    printf 'GNEWS_API_KEY=%s\n' "$GNEWS_API_KEY" >> .env
+                    printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env
+                    printf 'JWT_SECRET=%s\n' "$JWT_SECRET" >> .env
+                    printf 'ADMIN_USERNAME=%s\n' "$ADMIN_USER" >> .env
+                    printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASS" >> .env
+                    printf 'NEWSDATA_API_KEY=%s\n' "$NEWSDATA_API_KEY" >> .env
+                    printf 'PORT=5000\n' >> .env
+
                     docker compose up -d
                 '''
             }
@@ -88,8 +103,21 @@ pipeline {
         stage('Health Check') {
             steps {
                 echo '--- Checking app health ---'
-                sh 'sleep 10'
-                sh 'curl -f http://localhost:5000/health || exit 1'
+                sh '''
+                    set -e
+                    for i in 1 2 3 4 5 6 7 8 9 10; do
+                      if curl -fsS http://localhost:5000/health; then
+                        echo ""
+                        echo "Health check passed"
+                        exit 0
+                      fi
+                      echo "Attempt $i failed, retrying..."
+                      sleep 3
+                    done
+                    echo "Health check failed after retries"
+                    docker compose logs --tail=100 || true
+                    exit 1
+                '''
             }
         }
     }
@@ -100,6 +128,10 @@ pipeline {
         }
         failure {
             echo 'Pipeline failed. Check logs above.'
+            sh 'docker compose logs --tail=100 || true'
+        }
+        always {
+            sh 'rm -f .env || true'
         }
     }
 }
