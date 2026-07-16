@@ -1,47 +1,44 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchArticle, translateArticle } from '../api'
-import { useLanguage } from '../context/LanguageContext.jsx'
+import { fetchArticle } from '../api'
+import { useLanguage } from '../context/useLanguage.js'
 
 export default function ArticlePage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { language } = useLanguage()
+  const { language, getTranslation } = useLanguage()
   const [article, setArticle] = useState(null)
   const [displayContent, setDisplayContent] = useState(null)
   const [translating, setTranslating] = useState(false)
   const [listening, setListening] = useState(false)
 
-  useEffect(() => { loadArticle() }, [id])
-  useEffect(() => { if (article) applyTranslation() }, [article, language])
-
-  const loadArticle = async () => {
+  const loadArticle = useCallback(async () => {
     try {
       const res = await fetchArticle(id)
       setArticle(res.data)
     } catch (err) {
       console.error(err)
     }
-  }
+  }, [id])
 
-  const applyTranslation = async () => {
+  const applyTranslation = useCallback(async () => {
     if (!article) return
-    if (language === 'en') {
-      setDisplayContent({ title: article.title, content: article.content, summary: article.summary })
-      return
-    }
-    const cached = article.translations?.[language]
-    if (cached) { setDisplayContent(cached); return }
     setTranslating(true)
-    try {
-      const res = await translateArticle(article._id, language)
-      setDisplayContent(res.data)
-      setArticle(prev => ({ ...prev, translations: { ...prev.translations, [language]: res.data } }))
-    } catch (err) {
+    const result = await getTranslation(article, language)
+    if (result) {
+      setDisplayContent(result)
+    } else {
+      // Gemini failed — fall back to English
       setDisplayContent({ title: article.title, content: article.content, summary: article.summary })
     }
     setTranslating(false)
-  }
+  }, [article, language, getTranslation])
+
+  useEffect(() => { loadArticle() }, [loadArticle])
+
+  useEffect(() => {
+    if (article) applyTranslation()
+  }, [article, applyTranslation])
 
   const handleListen = () => {
     if (listening) { window.speechSynthesis.cancel(); setListening(false); return }
@@ -51,7 +48,7 @@ export default function ArticlePage() {
     if (displayContent.content) parts.push(displayContent.content)
     const text = parts.join('. ')
     const utterance = new SpeechSynthesisUtterance(text)
-    const langMap = { en:'en-US', hi:'hi-IN', mr:'mr-IN', ta:'ta-IN', te:'te-IN', bn:'bn-IN', gu:'gu-IN', pa:'pa-IN', fr:'fr-FR', es:'es-ES' }
+    const langMap = { en: 'en-US', hi: 'hi-IN', mr: 'mr-IN', ta: 'ta-IN', te: 'te-IN', bn: 'bn-IN', gu: 'gu-IN', pa: 'pa-IN', fr: 'fr-FR', es: 'es-ES' }
     utterance.lang = langMap[language] || 'en-US'
     utterance.rate = 0.9
     utterance.onend = () => setListening(false)
@@ -86,20 +83,34 @@ export default function ArticlePage() {
       </h1>
 
       <p style={{ fontSize: '1rem', color: '#555', lineHeight: '1.6', borderLeft: '4px solid #c0392b', paddingLeft: '1rem', marginBottom: '1.5rem', fontStyle: 'italic' }}>
-        {displayContent.summary}
+        {translating ? '' : displayContent.summary}
       </p>
 
-      <button onClick={handleListen} disabled={translating} style={{ background: listening ? '#c0392b' : '#1a1a1a', color: '#fff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+      <button
+        onClick={handleListen}
+        disabled={translating}
+        style={{ background: listening ? '#c0392b' : '#1a1a1a', color: '#fff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', marginBottom: '1.5rem' }}
+      >
         {listening ? 'Stop Listening' : 'Listen to Article'}
       </button>
 
       {article.imageUrl && (
-        <img src={article.imageUrl} alt={displayContent.title} style={{ width: '100%', maxHeight: '420px', objectFit: 'cover', borderRadius: '4px', marginBottom: '2rem' }} onError={e => { e.target.style.display = 'none' }} />
+        <img
+          src={article.imageUrl}
+          alt={displayContent.title}
+          style={{ width: '100%', maxHeight: '420px', objectFit: 'cover', borderRadius: '4px', marginBottom: '2rem' }}
+          onError={e => { e.target.style.display = 'none' }}
+        />
       )}
 
       {article.videoUrl && (
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, marginBottom: '2rem' }}>
-          <iframe src={article.videoUrl} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '4px' }} allowFullScreen title="Article video" />
+          <iframe
+            src={article.videoUrl}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '4px' }}
+            allowFullScreen
+            title="Article video"
+          />
         </div>
       )}
 

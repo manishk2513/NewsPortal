@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminLogin } from '../api'
 
@@ -16,7 +16,7 @@ export default function AdminLogin() {
       const res = await adminLogin(username, password)
       localStorage.setItem('adminToken', res.data.token)
       navigate('/admin')
-    } catch (err) {
+    } catch {
       setError('Invalid username or password')
     }
     setLoading(false)

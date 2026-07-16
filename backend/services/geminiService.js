@@ -52,7 +52,7 @@ Rules:
 - Make it engaging and professional
 - Write in clear neutral journalistic tone
 - Do not add opinions
-- Length should be 200 to 300 words
+- Length should be 800 to 900 words
 - Return ONLY the rewritten article text nothing else
 
 Title: ${title}

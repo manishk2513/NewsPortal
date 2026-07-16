@@ -1,6 +1,6 @@
-import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useLanguage, languages } from '../context/LanguageContext.jsx'
+import { useLanguage } from '../context/useLanguage.js'
+import { languages } from '../context/languages.js'
 
 export default function Navbar() {
   const { language, changeLanguage } = useLanguage()

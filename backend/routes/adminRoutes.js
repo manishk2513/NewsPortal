@@ -25,7 +25,7 @@ router.post("/fetch", async (req, res) => {
     }
 
     if (rawArticles.length === 0) {
-      return res.json({ message: "No articles fetched", count: 0 });
+      return res.json({ message: "No articles returned by the news API", success: 0, failed: 0, articles: [] });
     }
 
     let successCount = 0;

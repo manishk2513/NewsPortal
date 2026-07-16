@@ -8,14 +8,39 @@ pipeline {
         JWT_SECRET       = credentials('JWT_SECRET')
         ADMIN_PASSWORD   = credentials('ADMIN_PASSWORD')
         ADMIN_USERNAME   = 'admin'
+        DOCKER           = '/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe'
     }
 
     stages {
+
+        stage('Verify Tools') {
+            steps {
+                echo '--- Verifying Jenkins build tools ---'
+                sh '''
+                    set -e
+                    node --version
+                    npm --version
+                    "$DOCKER" --version
+                    "$DOCKER" compose version
+                '''
+            }
+        }
 
         stage('Checkout') {
             steps {
                 echo '--- Pulling latest code from GitHub ---'
                 checkout scm
+            }
+        }
+
+        stage('Prepare Docker Config') {
+            steps {
+                echo '--- Preparing Docker config for Jenkins ---'
+                sh '''
+                    set -e
+                    mkdir -p "$WORKSPACE/.docker-ci"
+                    printf '{"auths":{}}\n' > "$WORKSPACE/.docker-ci/config.json"
+                '''
             }
         }
 
@@ -67,14 +92,14 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 echo '--- Building Docker images ---'
-                sh 'docker compose build'
+                sh 'DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" compose build'
             }
         }
 
         stage('Stop Old Containers') {
             steps {
                 echo '--- Stopping old containers ---'
-                sh 'docker compose down || true'
+                sh 'DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" compose down || true'
             }
         }
 
@@ -91,7 +116,7 @@ pipeline {
                     printf 'ADMIN_USERNAME=%s\n' "$ADMIN_USERNAME" >> .env
                     printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD" >> .env
                     printf 'PORT=5000\n'                           >> .env
-                    docker compose up -d
+                    DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" compose up -d
                 '''
             }
         }
@@ -111,7 +136,7 @@ pipeline {
                       sleep 3
                     done
                     echo "Health check failed after 10 attempts"
-                    docker compose logs --tail=100 || true
+                    DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" compose logs --tail=100 || true
                     exit 1
                 '''
             }
@@ -124,11 +149,11 @@ pipeline {
         }
         failure {
             echo 'Pipeline failed. Check logs above.'
-            sh 'docker compose logs --tail=100 || true'
+            sh 'DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" compose logs --tail=100 || true'
         }
         always {
             sh 'rm -f .env || true'
-            sh 'docker image prune -f || true'
+            sh 'DOCKER_CONFIG="$WORKSPACE/.docker-ci" "$DOCKER" image prune -f || true'
         }
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminFetchNews, adminGetDrafts, adminGetStats, adminPublish, adminDelete, adminGetArticles } from '../api'
 
@@ -40,10 +40,16 @@ export default function AdminPanel() {
     setFetchResult('')
     try {
       const res = await adminFetchNews(fetchCategory)
-      setFetchResult('Done: ' + res.data.success + ' articles fetched. ' + res.data.failed + ' failed.')
+      const { success = 0, failed = 0, message = '' } = res.data
+      if (success === 0 && failed === 0) {
+        setFetchResult(message || 'No new articles found (all already exist or API returned nothing).')
+      } else {
+        setFetchResult(`Done: ${success} article${success !== 1 ? 's' : ''} fetched and saved.${failed > 0 ? ` ${failed} failed.` : ''}`)
+      }
       loadData()
     } catch (err) {
-      setFetchResult('Fetch failed. Check your API keys.')
+      const msg = err.response?.data?.message || err.message || 'Unknown error'
+      setFetchResult(`Fetch failed: ${msg}`)
     }
     setFetchLoading(false)
   }
