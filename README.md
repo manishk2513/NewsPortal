@@ -146,3 +146,5 @@ This project is ideal for teams that want:
 - Search and tagging
 - Analytics dashboard for reader behavior
 - Image optimization and CDN integration
+
+Pseudo Code Pseudo Code 1 — Admin Fetch: 1. Check that the admin is logged in using the JWT token. 2. Fetch raw news articles for the selected category from NewsData.io. 3. For each article: skip it if it already exists in the database, otherwise send it to Gemini to be rewritten, generate a short summary, and save it as a draft. 4. Return how many articles were saved successfully and how many failed. Pseudo Code 2 — Translate Article: 1. Check the article ID and the language the reader has asked for. 2. If the requested language is English, just return the original article as it is. 3. If this article has already been translated into this language before, return the saved (cached) translation. 4. Otherwise, call the Gemini API to translate it, save the result in the database, and return it to the reader. 
